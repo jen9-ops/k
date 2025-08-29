@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Калькулятор миномета</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Библиотеки для создания скриншота и PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+    
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Roboto', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+        width: 100%;
+        min-height: 100%;
+        background-color: #0d1117;
+        color: #e6edf3;
+    }
+    body {
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+    }
+    #mortarCalculatorModal {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #161b22;
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        padding: 30px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        border: 1px solid #30363d;
+    }
+    h1 {
+        font-size: 2rem;
+        color: #c9d1d9;
+        text-align: center;
+        border-bottom: 2px solid #30363d;
+        padding-bottom: 15px;
+        margin-bottom: 10px;
+    }
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #c9d1d9;
+    }
+    select, input {
+        width: 100%;
+        padding: 14px;
+        border: 1px solid #484f58;
+        border-radius: 8px;
+        font-size: 16px;
+        background-color: #21262d;
+        color: #e6edf3;
+        transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    select:focus, input:focus {
+        border-color: #58a6ff;
+        box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.25);
+        outline: none;
+    }
+    button {
+        background-color: #238636;
+        color: #fff;
+        border: none;
+        padding: 14px;
+        cursor: pointer;
+        font-weight: 600;
+        border-radius: 8px;
+        transition: background-color 0.3s ease, transform 0.1s ease;
+    }
+    button:hover {
+        background-color: #2ea043;
+        transform: translateY(-2px);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    #map {
+        height: 450px;
+        border-radius: 12px;
+        margin-top: 10px;
+        border: 1px solid #30363d;
+    }
+    .modal-content {
+        background-color: #161b22;
+        padding: 25px;
+        border-radius: 12px;
+        max-width: 450px;
+        border: 1px solid #30363d;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+    .modal-content h2 {
+        color: #c9d1d9;
+        margin-bottom: 10px;
+    }
+    .modal-content p {
+        margin-bottom: 20px;
+    }
+    .button-container {
+        display: flex;
+        flex-direction: row;
+        gap: 15px;
+        justify-content: center;
+        width: 100%;
+    }
+    .button-container button {
+        flex: 1;
+        max-width: 200px;
+    }
+
+    /* Адаптивные стили */
+    @media (max-width: 768px) {
+        body {
+            padding: 10px;
+        }
+        #mortarCalculatorModal {
+            padding: 20px;
+            gap: 15px;
+        }
+        h1 {
+            font-size: 1.8rem;
+        }
+        #map {
+            height: 300px;
+        }
+        .form-group input, .form-group select {
+          max-width: 100%;
+        }
+        .button-container button {
+          max-width: 100%;
+        }
+    }
+  </style>
+</head>
+<body>
+  <!-- Modal для показа статуса сохранения -->
+  <div id="infoModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 1000; align-items: center; justify-content: center; padding: 15px;">
+      <div class="modal-content">
+          <h2 id="infoTitle"></h2>
+          <p id="infoMessage"></p>
+          <button id="infoOkButton" aria-label="Закрыть">ОК</button>
+      </div>
+  </div>
+
+  <div id="mortarCalculatorModal">
+    <h1>Калькулятор миномета</h1>
+    
+    <div>
+        <label for="weaponType">Тип орудия:</label>
+        <select id="weaponType">
+          <option value="82mm">82-мм миномет (v0=211 м/с)</option>
+          <option value="120mm">120-мм миномет (v0=272 м/с)</option>
+          <option value="spg9">СПГ-9 (v0=435 м/с, приближенный)</option>
+        </select>
+    </div>
+    
+    <button id="timerButton" aria-label="Запустить таймер для фиксации времени">start</button>
+    
+    <div style="display: none">
+        <label id="exitTimeLabel" for="exitTime">Время выхода (секунды):</label>
+        <input type="number" id="exitTime" step="0.01" required readonly>
+    </div>
+    
+    <div style="display: none">
+        <label id="arrivalTimeLabel" for="arrivalTime">Время прихода (секунды):</label>
+        <input type="number" id="arrivalTime" step="0.01" required readonly>
+    </div>
+    
+    <div>
+        <label for="azimuth">Азимут (градусы):</label>
+        <input type="number" id="azimuth" min="0" max="360" required>
+    </div>
+    
+    <div class="button-container">
+        <button id="calculateButton" aria-label="Рассчитать позицию миномета">Рассчитать позицию</button>
+        <button id="sharePdfButton" aria-label="Поделиться в формате PDF">Поделиться (PDF)</button>
+    </div>
+
+    <div id="map"></div>
+    <div id="pdf-container" style="display: none;">
+      <div id="pdf-map-container" style="width: 100%; height: 500px;"></div>
+      <div id="pdf-info" class="pdf-info"></div>
+    </div>
+  </div>
+
+  <div id="geolocationBlockedModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 1000; align-items: center; justify-content: center; padding: 15px;">
+    <div class="modal-content">
+        <h2>Доступ к геолокации заблокирован</h2>
+        <p>Чтобы мы могли показать ваше местоположение, нужно разрешить доступ к геолокации в настройках вашего браузера.</p>
+        <button id="geolocationOkButton" aria-label="Подтвердить и закрыть">Понятно</button>
+    </div>
+  </div>
+
+  <div id="errorModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 1000; align-items: center; justify-content: center; padding: 15px;">
+    <div class="modal-content">
+        <h2>Ошибка</h2>
+        <p id="errorMessage"></p>
+        <button id="errorOkButton" aria-label="Подтвердить и закрыть">Понятно</button>
+    </div>
+  </div>
+
+  <script>
+    const timerButton = document.getElementById('timerButton');
+    const exitTimeInput = document.getElementById('exitTime');
+    const arrivalTimeInput = document.getElementById('arrivalTime');
+    const azimuthInput = document.getElementById('azimuth');
+    const weaponTypeSelect = document.getElementById('weaponType');
+    const calculateButton = document.getElementById('calculateButton');
+    const sharePdfButton = document.getElementById('sharePdfButton');
+    const geolocationOkButton = document.getElementById('geolocationOkButton');
+    const mapContainer = document.getElementById('map');
+    const exitTimeLabel = document.getElementById('exitTimeLabel');
+    const arrivalTimeLabel = document.getElementById('arrivalTimeLabel');
+    const errorModal = document.getElementById('errorModal');
+    const errorMessage = document.getElementById('errorMessage');
+    const errorOkButton = document.getElementById('errorOkButton');
+    const infoModal = document.getElementById('infoModal');
+    const infoTitle = document.getElementById('infoTitle');
+    const infoMessage = document.getElementById('infoMessage');
+    const infoOkButton = document.getElementById('infoOkButton');
+
+    let isFirstClick = true;
+    let timerInterval = null;
+    let startTime = 0;
+    let map = null;
+    let observerMarker = null;
+    let mortarMarker = null;
+    const eventMarkers = L.featureGroup();
+
+    // Инициализация карты
+    map = L.map(mapContainer, { attributionControl: false }).setView([49.21, 37.25], 13);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri'
+    }).addTo(map);
+    map.addLayer(eventMarkers);
+
+    // Функция для показа модального окна с информацией
+    function showInfo(title, message) {
+      infoTitle.textContent = title;
+      infoMessage.textContent = message;
+      infoModal.style.display = 'flex';
+    }
+
+    // Обработчик закрытия модального окна с информацией
+    infoOkButton.addEventListener('click', () => {
+      infoModal.style.display = 'none';
+    });
+
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorModal.style.display = 'flex';
+    }
+
+    errorOkButton.addEventListener('click', () => {
+      errorModal.style.display = 'none';
+    });
+
+    geolocationOkButton.addEventListener('click', () => {
+      document.getElementById('geolocationBlockedModal').style.display = 'none';
+    });
+
+    // Получение геолокации
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        map.setView([latitude, longitude], 13);
+        if (observerMarker) {
+          observerMarker.setLatLng([latitude, longitude]);
+        } else {
+          observerMarker = L.marker([latitude, longitude]).addTo(map)
+            .bindPopup('Ваше местоположение').openPopup();
+        }
+      },
+      () => {
+        document.getElementById('geolocationBlockedModal').style.display = 'flex';
+      }
+    );
+
+    const updateLabelsAndResetTimer = () => {
+      const weaponType = weaponTypeSelect.value;
+      if (weaponType === 'spg9') {
+        exitTimeLabel.textContent = 'Время первого прихода (секунды):';
+        arrivalTimeLabel.textContent = 'Время второго прихода (секунды):';
+      } else {
+        exitTimeLabel.textContent = 'Время выхода (секунды):';
+        arrivalTimeLabel.textContent = 'Время прихода (секунды):';
+      }
+      timerButton.textContent = 'start';
+      exitTimeInput.value = '';
+      arrivalTimeInput.value = '';
+      isFirstClick = true;
+    };
+
+    weaponTypeSelect.addEventListener('change', updateLabelsAndResetTimer);
+    updateLabelsAndResetTimer();
+
+    timerButton.addEventListener('click', () => {
+      const currentTime = performance.now() / 1000;
+      if (isFirstClick) {
+        startTime = currentTime;
+        exitTimeInput.value = currentTime.toFixed(2);
+        isFirstClick = false;
+        timerInterval = setInterval(() => {
+            const elapsedTime = performance.now() / 1000 - startTime;
+            timerButton.textContent = `Таймер: ${elapsedTime.toFixed(2)} с`;
+        }, 100);
+      } else {
+        clearInterval(timerInterval);
+        arrivalTimeInput.value = currentTime.toFixed(2);
+        isFirstClick = true;
+        timerButton.textContent = 'start';
+      }
+    });
+
+    calculateButton.addEventListener('click', async () => {
+      // Сброс таймера при расчете
+      clearInterval(timerInterval);
+      timerButton.textContent = 'start';
+      isFirstClick = true;
+
+      const exitTime = parseFloat(exitTimeInput.value);
+      const arrivalTime = parseFloat(arrivalTimeInput.value);
+      const azimuth = parseFloat(azimuthInput.value);
+      const weaponType = weaponTypeSelect.value;
+
+      // Проверка азимута
+      if (isNaN(azimuth) || azimuth < 0 || azimuth > 360) {
+        showError('Пожалуйста, введите корректный азимут от 0 до 360 градусов.');
+        return;
+      }
+      
+      if (isNaN(exitTime) || isNaN(arrivalTime)) {
+        showError('Пожалуйста, заполните все поля корректными значениями.');
+        return;
+      }
+
+      let v0;
+      if (weaponType === '82mm') v0 = 211;
+      else if (weaponType === '120mm') v0 = 272;
+      else if (weaponType === 'spg9') v0 = 435;
+
+      const g = 9.81;
+      const R_Earth = 6371000;
+
+      const flightTime = arrivalTime - exitTime;
+      if (flightTime <= 0) {
+        showError('Время полета должно быть положительным.');
+        return;
+      }
+
+      const sin_theta = (flightTime * g) / (2 * v0);
+      if (sin_theta > 1 || sin_theta < 0) {
+        showError(`Невозможное время полета (${flightTime.toFixed(2)} с) для выбранного орудия (v0=${v0} м/с).`);
+        return;
+      }
+
+      const theta = Math.asin(sin_theta);
+      const range = v0 * Math.cos(theta) * flightTime;
+
+      if (!observerMarker) {
+        showError('Геолокация недоступна. Невозможно рассчитать позицию.');
+        return;
+      }
+
+      const observerLat = observerMarker.getLatLng().lat;
+      const observerLon = observerMarker.getLatLng().lng;
+      const azimuthRad = azimuth * Math.PI / 180;
+      const deltaLat = (range * Math.cos(azimuthRad)) / R_Earth * (180 / Math.PI);
+      const deltaLon = (range * Math.sin(azimuthRad)) / (R_Earth * Math.cos(observerLat * Math.PI / 180)) * (180 / Math.PI);
+      const mortarLat = observerLat + deltaLat;
+      const mortarLon = observerLon + deltaLon;
+
+      const popupContent = `
+        <b>Тип орудия:</b> ${weaponTypeSelect.options[weaponTypeSelect.selectedIndex].text}<br>
+        <b>Время полета:</b> ${flightTime.toFixed(2)} с<br>
+        <b>Дальность:</b> ${range.toFixed(0)} м<br>
+        <b>Угол:</b> ${(theta * 180 / Math.PI).toFixed(2)}°<br>
+        <b>Координаты:</b> ${mortarLat.toFixed(5)}, ${mortarLon.toFixed(5)}
+      `;
+
+      if (mortarMarker) {
+        mortarMarker.setLatLng([mortarLat, mortarLon]).setPopupContent(popupContent);
+      } else {
+        mortarMarker = L.marker([mortarLat, mortarLon]).addTo(map)
+          .bindPopup(popupContent);
+      }
+      mortarMarker.openPopup();
+      map.fitBounds([
+          [observerLat, observerLon],
+          [mortarLat, mortarLon]
+      ], { padding: [50, 50] });
+
+      // Автоматическое сохранение события на карту
+      addEventMarker({
+        lat: mortarLat,
+        lon: mortarLon,
+        info: popupContent
+      });
+    });
+
+    // Добавление маркера события на карту
+    const addEventMarker = (event) => {
+      const marker = L.marker([event.lat, event.lon]).addTo(eventMarkers);
+      marker.bindPopup(event.info);
+    };
+
+    // Функция для создания PDF
+    sharePdfButton.addEventListener('click', async () => {
+      if (!mortarMarker) {
+        showError("Сначала рассчитайте позицию миномета.");
+        return;
+      }
+      showInfo("Поделиться", "Создание PDF-файла...");
+      await generatePdf();
+    });
+
+    const generatePdf = async () => {
+      // Создаем временный контейнер для PDF-контента
+      const pdfMapContainer = document.getElementById('pdf-map-container');
+      const pdfInfoContainer = document.getElementById('pdf-info');
+      const pdfContainer = document.getElementById('pdf-container');
+      
+      // Temporarily show the container off-screen to allow rendering
+      pdfContainer.style.display = 'block';
+      pdfContainer.style.position = 'absolute';
+      pdfContainer.style.left = '-9999px';
+
+      // Создаем временную карту
+      const tempMap = L.map(pdfMapContainer, { attributionControl: false, zoomControl: false }).setView(map.getCenter(), map.getZoom());
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri'
+      }).addTo(tempMap);
+
+      const eventData = mortarMarker.getPopup().getContent();
+      pdfInfoContainer.innerHTML = `<h3>Информация о событии</h3>${eventData}`;
+      pdfInfoContainer.style.display = 'block';
+      
+      // Отрисовываем текущие маркеры на временной карте
+      eventMarkers.eachLayer(layer => {
+        const newMarker = L.marker(layer.getLatLng()).addTo(tempMap);
+        if (layer instanceof L.Marker) {
+          newMarker.bindPopup(layer.getPopup().getContent());
+        }
+      });
+      // Добавляем текущий маркер миномета
+      const newMortarMarker = L.marker(mortarMarker.getLatLng()).addTo(tempMap);
+      newMortarMarker.bindPopup(mortarMarker.getPopup().getContent());
+      
+      // Дожидаемся, пока карта полностью загрузится, и добавляем небольшую задержку
+      await new Promise(resolve => tempMap.whenReady(() => {
+        setTimeout(resolve, 500); // 500ms delay to ensure tiles are rendered
+      }));
+
+      // Захватываем контейнер для PDF
+      const canvas = await html2canvas(pdfContainer);
+
+      // Создаем PDF
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png');
+      const imgProps= pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('ru-RU').replace(/\./g, '-');
+      const timeStr = now.toLocaleTimeString('ru-RU').replace(/:/g, '-');
+      pdf.save(`Отчет_${dateStr}_${timeStr}.pdf`);
+
+      // Очищаем временные элементы
+      tempMap.remove();
+      pdfContainer.style.display = 'none';
+      pdfContainer.style.position = 'static';
+      pdfContainer.style.left = 'auto';
+      pdfInfoContainer.style.display = 'none';
+      showInfo("Поделиться", "PDF-файл успешно создан.");
+    };
+  </script>
+</body>
+</html>
