@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Библиотеки для создания скриншота и PDF -->
+  <!-- Libraries for screenshot and PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   
@@ -26,6 +26,7 @@
         min-height: 100%;
         background-color: #0d1117;
         color: #e6edf3;
+        transition: background-color 0.3s, color 0.3s;
     }
     body {
         padding: 20px;
@@ -46,6 +47,7 @@
         flex-direction: column;
         gap: 20px;
         border: 1px solid #30363d;
+        transition: all 0.3s ease;
     }
     h1 {
         font-size: 2rem;
@@ -98,6 +100,7 @@
         border-radius: 12px;
         margin-top: 10px;
         border: 1px solid #30363d;
+        transition: all 0.5s ease;
     }
     .modal-content {
         background-color: #161b22;
@@ -126,7 +129,7 @@
         max-width: 200px;
     }
 
-    /* Адаптивные стили */
+    /* Responsive styles */
     @media (max-width: 768px) {
         body {
             padding: 10px;
@@ -138,7 +141,7 @@
         h1 {
             font-size: 1.8rem;
         }
-        #map {
+        #map, #map-container {
             height: 300px;
         }
         .form-group input, .form-group select {
@@ -151,12 +154,12 @@
   </style>
 </head>
 <body>
-  <!-- Modal для показа статуса сохранения -->
+  <!-- Modal for showing saving status -->
   <div id="infoModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.8); z-index: 1000; align-items: center; justify-content: center; padding: 15px;">
       <div class="modal-content">
           <h2 id="infoTitle"></h2>
           <p id="infoMessage"></p>
-          <button id="infoOkButton" aria-label="Закрыть">ОК</button>
+          <button id="infoOkButton" aria-label="Close">ОК</button>
       </div>
   </div>
 
@@ -191,10 +194,13 @@
     
     <div class="button-container">
         <button id="calculateButton" aria-label="Рассчитать позицию миномета">Рассчитать позицию</button>
-        <button id="sharePdfButton" aria-label="Поделиться в формате PDF">Поделиться (PDF)</button>
+        <button id="sharePdfButton" aria-label="Поделиться">Поделиться</button>
     </div>
 
-    <div id="map"></div>
+    <div id="map-container">
+      <div id="map"></div>
+    </div>
+
     <div id="pdf-container" style="display: none;">
       <div id="pdf-map-container" style="width: 100%; height: 500px;"></div>
       <div id="pdf-info" class="pdf-info"></div>
@@ -224,7 +230,7 @@
     const azimuthInput = document.getElementById('azimuth');
     const weaponTypeSelect = document.getElementById('weaponType');
     const calculateButton = document.getElementById('calculateButton');
-    const sharePdfButton = document.getElementById('sharePdfButton');
+    const shareButton = document.getElementById('sharePdfButton');
     const geolocationOkButton = document.getElementById('geolocationOkButton');
     const mapContainer = document.getElementById('map');
     const exitTimeLabel = document.getElementById('exitTimeLabel');
@@ -236,7 +242,7 @@
     const infoTitle = document.getElementById('infoTitle');
     const infoMessage = document.getElementById('infoMessage');
     const infoOkButton = document.getElementById('infoOkButton');
-
+    
     let isFirstClick = true;
     let timerInterval = null;
     let startTime = 0;
@@ -245,21 +251,21 @@
     let mortarMarker = null;
     const eventMarkers = L.featureGroup();
 
-    // Инициализация карты
+    // Initialize map
     map = L.map(mapContainer, { attributionControl: false }).setView([49.21, 37.25], 13);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Tiles &copy; Esri'
     }).addTo(map);
     map.addLayer(eventMarkers);
 
-    // Функция для показа модального окна с информацией
+    // Show info modal
     function showInfo(title, message) {
       infoTitle.textContent = title;
       infoMessage.textContent = message;
       infoModal.style.display = 'flex';
     }
 
-    // Обработчик закрытия модального окна с информацией
+    // Info modal close handler
     infoOkButton.addEventListener('click', () => {
       infoModal.style.display = 'none';
     });
@@ -277,7 +283,7 @@
       document.getElementById('geolocationBlockedModal').style.display = 'none';
     });
 
-    // Получение геолокации
+    // Get geolocation
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
@@ -331,7 +337,7 @@
     });
 
     calculateButton.addEventListener('click', async () => {
-      // Сброс таймера при расчете
+      // Reset timer on calculation
       clearInterval(timerInterval);
       timerButton.textContent = 'start';
       isFirstClick = true;
@@ -341,7 +347,7 @@
       const azimuth = parseFloat(azimuthInput.value);
       const weaponType = weaponTypeSelect.value;
 
-      // Проверка азимута
+      // Azimuth validation
       if (isNaN(azimuth) || azimuth < 0 || azimuth > 360) {
         showError('Пожалуйста, введите корректный азимут от 0 до 360 градусов.');
         return;
@@ -408,7 +414,7 @@
           [mortarLat, mortarLon]
       ], { padding: [50, 50] });
 
-      // Автоматическое сохранение события на карту
+      // Auto save event to map
       addEventMarker({
         lat: mortarLat,
         lon: mortarLon,
@@ -416,24 +422,54 @@
       });
     });
 
-    // Добавление маркера события на карту
+    // Add event marker to map
     const addEventMarker = (event) => {
       const marker = L.marker([event.lat, event.lon]).addTo(eventMarkers);
       marker.bindPopup(event.info);
     };
 
-    // Функция для создания PDF
-    sharePdfButton.addEventListener('click', async () => {
+    // Share button handler
+    shareButton.addEventListener('click', async () => {
       if (!mortarMarker) {
         showError("Сначала рассчитайте позицию миномета.");
         return;
       }
-      showInfo("Поделиться", "Создание PDF-файла...");
-      await generatePdf();
+
+      showInfo("Поделиться", "Создание файла...");
+
+      if (navigator.share && navigator.canShare) {
+        try {
+          const pdfBlob = await generatePdfBlob();
+          const files = [new File([pdfBlob], `Отчет_${Date.now()}.pdf`, { type: 'application/pdf' })];
+
+          if (navigator.canShare({ files })) {
+            await navigator.share({
+              files: files,
+              title: 'Отчет о минометном расчете',
+              text: 'Рассчитанная минометная позиция и информация о событии.'
+            });
+          } else {
+            // Fallback if file sharing is not possible
+            showError("Не удалось поделиться файлом. Скачивание началось автоматически.");
+            downloadPdf(pdfBlob);
+          }
+        } catch (error) {
+          console.error('Error using Web Share API:', error);
+          showError('Не удалось поделиться. Попробуйте еще раз или скачайте файл.');
+        }
+      } else {
+        // Fallback for desktop and older browsers
+        const pdfBlob = await generatePdfBlob();
+        downloadPdf(pdfBlob);
+      }
+      
+      showInfo("Поделиться", "Готово!");
+      setTimeout(() => infoModal.style.display = 'none', 1500);
     });
 
-    const generatePdf = async () => {
-      // Создаем временный контейнер для PDF-контента
+    // Function to generate PDF blob (without downloading)
+    const generatePdfBlob = async () => {
+      // Create a temporary container for PDF content
       const pdfMapContainer = document.getElementById('pdf-map-container');
       const pdfInfoContainer = document.getElementById('pdf-info');
       const pdfContainer = document.getElementById('pdf-container');
@@ -443,7 +479,7 @@
       pdfContainer.style.position = 'absolute';
       pdfContainer.style.left = '-9999px';
 
-      // Создаем временную карту
+      // Create a temporary map
       const tempMap = L.map(pdfMapContainer, { attributionControl: false, zoomControl: false }).setView(map.getCenter(), map.getZoom());
       L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles &copy; Esri'
@@ -453,26 +489,26 @@
       pdfInfoContainer.innerHTML = `<h3>Информация о событии</h3>${eventData}`;
       pdfInfoContainer.style.display = 'block';
       
-      // Отрисовываем текущие маркеры на временной карте
+      // Render current markers on the temporary map
       eventMarkers.eachLayer(layer => {
         const newMarker = L.marker(layer.getLatLng()).addTo(tempMap);
         if (layer instanceof L.Marker) {
           newMarker.bindPopup(layer.getPopup().getContent());
         }
       });
-      // Добавляем текущий маркер миномета
+      // Add the current mortar marker
       const newMortarMarker = L.marker(mortarMarker.getLatLng()).addTo(tempMap);
       newMortarMarker.bindPopup(mortarMarker.getPopup().getContent());
       
-      // Дожидаемся, пока карта полностью загрузится, и добавляем небольшую задержку
+      // Wait for the map to load completely, and add a small delay
       await new Promise(resolve => tempMap.whenReady(() => {
         setTimeout(resolve, 500); // 500ms delay to ensure tiles are rendered
       }));
 
-      // Захватываем контейнер для PDF
+      // Capture the container for the PDF
       const canvas = await html2canvas(pdfContainer);
 
-      // Создаем PDF
+      // Create PDF
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgData = canvas.toDataURL('image/png');
@@ -482,19 +518,33 @@
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       
-      const now = new Date();
-      const dateStr = now.toLocaleDateString('ru-RU').replace(/\./g, '-');
-      const timeStr = now.toLocaleTimeString('ru-RU').replace(/:/g, '-');
-      pdf.save(`Отчет_${dateStr}_${timeStr}.pdf`);
+      const pdfOutput = pdf.output('blob');
 
-      // Очищаем временные элементы
+      // Clear temporary elements
       tempMap.remove();
       pdfContainer.style.display = 'none';
       pdfContainer.style.position = 'static';
       pdfContainer.style.left = 'auto';
       pdfInfoContainer.style.display = 'none';
-      showInfo("Поделиться", "PDF-файл успешно создан.");
+      
+      return pdfOutput;
     };
+
+    const downloadPdf = (pdfBlob) => {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('ru-RU').replace(/\./g, '-');
+      const timeStr = now.toLocaleTimeString('ru-RU').replace(/:/g, '-');
+      const filename = `Отчет_${dateStr}_${timeStr}.pdf`;
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(pdfBlob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    };
+
   </script>
 </body>
 </html>
