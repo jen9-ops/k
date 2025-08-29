@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Калькулятор</title>
-  <link rel="icon" href=https://w7.pngwing.com/pngs/1009/184/png-transparent-computer-icons-mortar-military-miscellaneous-angle-monochrome.png" type="image/x-icon">
+  <title>Калькулятор миномета</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Libraries for screenshot and PDF generation -->
@@ -34,11 +34,6 @@
         flex-direction: column;
         align-items: center;
         justify-content: flex-start;
-    }
-
-    #img {
-        width: 10%;
-        height: auto;
     }
     #mortarCalculatorModal {
         width: 100%;
@@ -188,7 +183,6 @@
         .button-container button {
           max-width: 100%;
         }
-      
     }
   </style>
 </head>
@@ -204,8 +198,8 @@
 
   <div id="mortarCalculatorModal">
     <h1>
-        <img id="img" src="https://w7.pngwing.com/pngs/1009/184/png-transparent-computer-icons-mortar-military-miscellaneous-angle-monochrome.png" alt="Mortar Icon">
-        Калькулятор миномета
+        
+        Ращет позицыи
     </h1>
     
     <div>
@@ -629,6 +623,10 @@
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
     };
+    
+    document.addEventListener('DOMContentLoaded', () => {
+      loadEventsFromLocalStorage();
+    });
   </script>
 </body>
 </html>
