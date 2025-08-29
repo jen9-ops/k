@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Калькулятор миномета</title>
-  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <title>Калькулятор</title>
+  <link rel="icon" href=https://w7.pngwing.com/pngs/1009/184/png-transparent-computer-icons-mortar-military-miscellaneous-angle-monochrome.png" type="image/PNG">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Libraries for screenshot and PDF generation -->
@@ -35,6 +35,11 @@
         align-items: center;
         justify-content: flex-start;
     }
+
+    #img {
+        width: 0.6%;
+        height: 1%;
+    }
     #mortarCalculatorModal {
         width: 100%;
         max-width: 600px;
@@ -56,6 +61,14 @@
         border-bottom: 2px solid #30363d;
         padding-bottom: 15px;
         margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+    }
+    h1 img {
+        height: 2rem;
+        width: auto;
     }
     label {
         display: block;
@@ -95,6 +108,12 @@
     button:active {
       transform: translateY(0);
     }
+    button.active-timer {
+      background-color: #d63327;
+    }
+    button.active-timer:hover {
+      background-color: #ff4d40;
+    }
     #map {
         height: 450px;
         border-radius: 12px;
@@ -128,8 +147,27 @@
         flex: 1;
         max-width: 200px;
     }
+    .timer-display {
+        color: #fff;
+        font-weight: bold;
+        padding-left: 10px;
+    }
 
-    /* Responsive styles */
+    /* Responsive styles for tablets and desktops */
+    @media (min-width: 769px) and (max-width: 1200px) {
+        #mortarCalculatorModal {
+            max-width: 700px;
+            padding: 25px;
+        }
+        h1 {
+            font-size: 1.8rem;
+        }
+        h1 img {
+            height: 1.8rem;
+        }
+    }
+
+    /* Responsive styles for phones */
     @media (max-width: 768px) {
         body {
             padding: 10px;
@@ -141,15 +179,16 @@
         h1 {
             font-size: 1.8rem;
         }
+        h1 img {
+            height: 1.8rem;
+        }
         #map, #map-container {
             height: 300px;
-        }
-        .form-group input, .form-group select {
-          max-width: 100%;
         }
         .button-container button {
           max-width: 100%;
         }
+      
     }
   </style>
 </head>
@@ -164,7 +203,10 @@
   </div>
 
   <div id="mortarCalculatorModal">
-    <h1>Калькулятор миномета</h1>
+    <h1>
+        <img id="img" src="https://w7.pngwing.com/pngs/1009/184/png-transparent-computer-icons-mortar-military-miscellaneous-angle-monochrome.png" alt="Mortar Icon">
+        Калькулятор миномета
+    </h1>
     
     <div>
         <label for="weaponType">Тип орудия:</label>
@@ -175,7 +217,8 @@
         </select>
     </div>
     
-    <button id="timerButton" aria-label="Запустить таймер для фиксации времени">start</button>
+    <button id="timerButton" aria-label="Запустить таймер для фиксации времени">выход</button>
+    <span id="timerDisplay" class="timer-display"></span>
     
     <div style="display: none">
         <label id="exitTimeLabel" for="exitTime">Время выхода (секунды):</label>
@@ -225,6 +268,7 @@
 
   <script>
     const timerButton = document.getElementById('timerButton');
+    const timerDisplay = document.getElementById('timerDisplay');
     const exitTimeInput = document.getElementById('exitTime');
     const arrivalTimeInput = document.getElementById('arrivalTime');
     const azimuthInput = document.getElementById('azimuth');
@@ -250,6 +294,30 @@
     let observerMarker = null;
     let mortarMarker = null;
     const eventMarkers = L.featureGroup();
+    let events = []; // Array to store events for local storage
+
+    // Load events from local storage on page load
+    const loadEventsFromLocalStorage = () => {
+        try {
+            const savedEvents = localStorage.getItem('mortar_events');
+            if (savedEvents) {
+                events = JSON.parse(savedEvents);
+                events.forEach(event => {
+                    addEventMarker(event);
+                });
+                if (events.length > 0) {
+                    map.fitBounds(eventMarkers.getBounds(), { padding: [50, 50] });
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load events from local storage", e);
+        }
+    };
+
+    // Save events to local storage
+    const saveEventsToLocalStorage = () => {
+        localStorage.setItem('mortar_events', JSON.stringify(events));
+    };
 
     // Initialize map
     map = L.map(mapContainer, { attributionControl: false }).setView([49.21, 37.25], 13);
@@ -257,6 +325,7 @@
       attribution: 'Tiles &copy; Esri'
     }).addTo(map);
     map.addLayer(eventMarkers);
+    loadEventsFromLocalStorage();
 
     // Show info modal
     function showInfo(title, message) {
@@ -309,7 +378,9 @@
         exitTimeLabel.textContent = 'Время выхода (секунды):';
         arrivalTimeLabel.textContent = 'Время прихода (секунды):';
       }
-      timerButton.textContent = 'start';
+      timerButton.textContent = 'выход';
+      timerButton.classList.remove('active-timer');
+      timerDisplay.textContent = '';
       exitTimeInput.value = '';
       arrivalTimeInput.value = '';
       isFirstClick = true;
@@ -319,27 +390,38 @@
     updateLabelsAndResetTimer();
 
     timerButton.addEventListener('click', () => {
+      if (typeof performance === 'undefined' || typeof performance.now !== 'function') {
+        showError('Ваш браузер не поддерживает высокоточный таймер.');
+        return;
+      }
+
       const currentTime = performance.now() / 1000;
       if (isFirstClick) {
         startTime = currentTime;
         exitTimeInput.value = currentTime.toFixed(2);
         isFirstClick = false;
+        timerButton.textContent = 'приход';
+        timerButton.classList.add('active-timer');
         timerInterval = setInterval(() => {
             const elapsedTime = performance.now() / 1000 - startTime;
-            timerButton.textContent = `Таймер: ${elapsedTime.toFixed(2)} с`;
+            timerDisplay.textContent = `Таймер: ${elapsedTime.toFixed(2)} с`;
         }, 100);
       } else {
         clearInterval(timerInterval);
         arrivalTimeInput.value = currentTime.toFixed(2);
         isFirstClick = true;
-        timerButton.textContent = 'start';
+        timerButton.textContent = 'выход';
+        timerButton.classList.remove('active-timer');
+        timerDisplay.textContent = '';
       }
     });
 
     calculateButton.addEventListener('click', async () => {
       // Reset timer on calculation
       clearInterval(timerInterval);
-      timerButton.textContent = 'start';
+      timerButton.textContent = 'выход';
+      timerButton.classList.remove('active-timer');
+      timerDisplay.textContent = '';
       isFirstClick = true;
 
       const exitTime = parseFloat(exitTimeInput.value);
@@ -414,12 +496,15 @@
           [mortarLat, mortarLon]
       ], { padding: [50, 50] });
 
-      // Auto save event to map
-      addEventMarker({
+      // Auto save event to map and local storage
+      const newEvent = {
         lat: mortarLat,
         lon: mortarLon,
         info: popupContent
-      });
+      };
+      addEventMarker(newEvent);
+      events.push(newEvent);
+      saveEventsToLocalStorage();
     });
 
     // Add event marker to map
@@ -544,7 +629,6 @@
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
     };
-
   </script>
 </body>
 </html>
