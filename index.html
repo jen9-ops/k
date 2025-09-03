@@ -641,6 +641,7 @@
                 if (distances.every(isNaN)) return;
                 
                 if (event.azimuth && event.azimuth.includes('-')) {
+                    // Render sectors for each distance in the log
                     const parts = event.azimuth.split('-').map(Number);
                     let [startBearing, endBearing] = parts;
                     if (isNaN(startBearing) || isNaN(endBearing)) return;
@@ -1040,6 +1041,16 @@
             deferredPrompt = null;
             console.log('PWA was installed');
         });
+        
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then(registration => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
 
         document.addEventListener('DOMContentLoaded', initialize);
     </script>
